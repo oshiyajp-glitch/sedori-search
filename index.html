@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="相場検索">
+  <meta name="theme-color" content="#1c1917">
+  <meta name="robots" content="noindex, nofollow">
+  <title>相場検索</title>
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #d6d0c6;
+      color-scheme: light;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; }
+
+    body {
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      line-height: 1.4;
+    }
+
+    main {
+      max-width: 28rem;
+      margin: 0 auto;
+      padding:
+        calc(1.1rem + env(safe-area-inset-top))
+        calc(1rem + env(safe-area-inset-right))
+        calc(1.4rem + env(safe-area-inset-bottom))
+        calc(1rem + env(safe-area-inset-left));
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .lead {
+      margin: 0.2rem 0 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .field {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    input[type="search"] {
+      flex: 1;
+      min-width: 0;
+      height: 3.5rem;
+      padding: 0 0.95rem;
+      border: 2px solid var(--line);
+      border-radius: 0.9rem;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 1.15rem;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input[type="search"]::-webkit-search-cancel-button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input[type="search"]:focus {
+      outline: 3px solid var(--ink);
+      outline-offset: 1px;
+      border-color: var(--ink);
+    }
+
+    #clear,
+    #open-all,
+    .site {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    #clear {
+      flex: 0 0 auto;
+      height: 3.5rem;
+      padding: 0 0.95rem;
+      border: 2px solid var(--line);
+      border-radius: 0.9rem;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    #clear[hidden] { display: none; }
+
+    #open-all {
+      width: 100%;
+      margin-top: 0.75rem;
+      min-height: 4.1rem;
+      border: 0;
+      border-radius: 0.95rem;
+      background: #e7e0d4;
+      color: #44403c;
+      font: inherit;
+      font-size: 1.22rem;
+      font-weight: 800;
+    }
+
+    #open-all.is-ready {
+      background: var(--ink);
+      color: #fff;
+    }
+
+    #open-all:focus-visible,
+    #clear:focus-visible,
+    .site:focus-visible {
+      outline: 3px solid var(--ink);
+      outline-offset: 3px;
+    }
+
+    #open-all:active,
+    .site:active { transform: scale(0.985); }
+
+    .hint {
+      margin: 0.65rem 0 0;
+      color: #44403c;
+      font-size: 0.84rem;
+    }
+
+    #status {
+      min-height: 1.35rem;
+      margin: 0.35rem 0 0;
+      color: var(--ink);
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+
+    .sites {
+      display: grid;
+      gap: 0.7rem;
+      margin-top: 0.85rem;
+    }
+
+    .site {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 4.6rem;
+      padding: 0.7rem 1rem 0.75rem 1.15rem;
+      border-radius: 0.95rem;
+      color: #fff;
+      text-decoration: none;
+      box-shadow: inset 7px 0 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .site[aria-disabled="true"] { cursor: default; }
+
+    .site-name {
+      font-size: 1.18rem;
+      font-weight: 800;
+    }
+
+    .site-kind {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .site-note {
+      margin-top: 0.12rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      opacity: 0.88;
+    }
+
+    .ebay { background: #0064d2; }
+    .yahoo { background: #d70018; }
+    .mercari { background: #111; }
+
+    button { cursor: pointer; }
+    .site { cursor: pointer; }
+
+    noscript {
+      display: block;
+      margin-top: 1rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>相場検索</h1>
+    <p class="lead">型番を入れると、販売済みの検索を開けます。</p>
+
+    <form id="search-form" autocomplete="off">
+      <label for="query">型番・キーワード</label>
+      <div class="field">
+        <input
+          id="query"
+          name="query"
+          type="search"
+          inputmode="text"
+          enterkeyhint="search"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          autocomplete="off"
+          placeholder="例: SM58-LCE"
+          autofocus
+        >
+        <button type="button" id="clear" hidden>クリア</button>
+      </div>
+      <button type="submit" id="open-all" aria-disabled="true">3サイトを開く</button>
+      <p class="hint">各サイトは、下のボタンから個別に開けます。</p>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <nav class="sites" aria-label="各サイトの検索">
+      <a id="link-ebay" class="site ebay" role="link" aria-disabled="true" tabindex="-1">
+        <span class="site-name">eBay</span>
+        <span class="site-kind">販売済み</span>
+        <span class="site-note">ログインが必要なことがあります</span>
+      </a>
+      <a id="link-yahoo" class="site yahoo" role="link" aria-disabled="true" tabindex="-1">
+        <span class="site-name">ヤフオク</span>
+        <span class="site-kind">落札済み</span>
+      </a>
+      <a id="link-mercari" class="site mercari" role="link" aria-disabled="true" tabindex="-1">
+        <span class="site-name">メルカリ</span>
+        <span class="site-kind">売り切れ</span>
+      </a>
+    </nav>
+    <noscript>このページはJavaScriptが必要です。Safariの設定でJavaScriptを有効にしてください。</noscript>
+  </main>
+
+  <script>
+    // 2026-10-11 に公式ページで確認した検索URL。
+    // eBay: LH_Sold=1 & LH_Complete=1 は販売済み。未ログインだとログイン画面へ渡り、戻り先に検索条件が残る。
+    // ヤフオク: /closedsearch/closedsearch?p= が落札相場。
+    // メルカリ: 絞り込み「売り切れ」の値は sold_out|trading。
+    (function () {
+      var input = document.getElementById("query");
+      var form = document.getElementById("search-form");
+      var status = document.getElementById("status");
+      var clearButton = document.getElementById("clear");
+      var openAllButton = document.getElementById("open-all");
+      var links = {
+        ebay: document.getElementById("link-ebay"),
+        yahoo: document.getElementById("link-yahoo"),
+        mercari: document.getElementById("link-mercari")
+      };
+      var dashes = /[\u2010\u2011\u2012\u2013\u2014\u2212\uFE63\uFF0D]/g;
+
+      function normalizeQuery(value) {
+        return value.normalize("NFKC").replace(dashes, "-").trim().replace(/\s+/g, " ");
+      }
+
+      function buildUrls(query) {
+        var q = encodeURIComponent(query);
+        return {
+          ebay: "https://www.ebay.com/sch/i.html?_nkw=" + q + "&_sacat=0&LH_Sold=1&LH_Complete=1&rt=nc&_sop=13",
+          yahoo: "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=" + q,
+          mercari: "https://jp.mercari.com/search?keyword=" + q + "&status=" + encodeURIComponent("sold_out|trading")
+        };
+      }
+
+      function currentQuery() {
+        return normalizeQuery(input.value);
+      }
+
+      function setStatus(message) {
+        status.textContent = message;
+      }
+
+      function sync() {
+        var query = currentQuery();
+        var ready = query.length > 0;
+        var urls = ready ? buildUrls(query) : null;
+        openAllButton.classList.toggle("is-ready", ready);
+        openAllButton.setAttribute("aria-disabled", ready ? "false" : "true");
+        clearButton.hidden = input.value.length === 0;
+        Object.keys(links).forEach(function (id) {
+          var link = links[id];
+          if (ready) {
+            link.href = urls[id];
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.setAttribute("aria-disabled", "false");
+            link.tabIndex = 0;
+          } else {
+            link.removeAttribute("href");
+            link.removeAttribute("target");
+            link.removeAttribute("rel");
+            link.setAttribute("aria-disabled", "true");
+            link.tabIndex = -1;
+          }
+        });
+      }
+
+      function openAllSites(urls) {
+        ["ebay", "yahoo", "mercari"].forEach(function (id) {
+          var popup = window.open(urls[id], "_blank");
+          if (popup) {
+            try { popup.opener = null; } catch (error) {}
+          }
+        });
+        // 開いた先が別サイトだと、成功しても window の参照が null になる。
+        // iPhone では2件目以降が止まることもあるので、個別ボタンを案内する。
+        setStatus("開きました。足りないサイトは下のボタンを押してください。");
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var query = currentQuery();
+        if (!query) {
+          setStatus("型番を入力してください。");
+          input.focus();
+          return;
+        }
+        if (input.value !== query) {
+          input.value = query;
+        }
+        sync();
+        openAllSites(buildUrls(query));
+      });
+
+      input.addEventListener("input", function () {
+        setStatus("");
+        sync();
+      });
+
+      clearButton.addEventListener("click", function () {
+        input.value = "";
+        setStatus("");
+        sync();
+        input.focus();
+      });
+
+      Object.keys(links).forEach(function (id) {
+        links[id].addEventListener("click", function (event) {
+          if (!links[id].getAttribute("href")) {
+            event.preventDefault();
+            setStatus("型番を入力してください。");
+            input.focus();
+          }
+        });
+      });
+
+      sync();
+    })();
+  </script>
+</body>
+</html>
