@@ -1,22 +1,13 @@
 (function (root) {
   var LONG_EDGE = 1280;
+  var CROP_LONG_EDGE = 640;
   var INIT_TIMEOUT_MS = 25000;
   var RECOGNIZE_TIMEOUT_MS = 20000;
   var CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-./# ";
   var PAGE_MODE = "11";
+  var LINE_MODE = "7";
   var DASHES = /[\u2010\u2011\u2012\u2013\u2014\u2212\uFE63\uFF0D]/g;
-  var PAIRS = [
-    ["0", "O"],
-    ["O", "0"],
-    ["1", "I"],
-    ["I", "1"],
-    ["5", "S"],
-    ["S", "5"],
-    ["8", "B"],
-    ["B", "8"],
-    ["2", "Z"],
-    ["Z", "2"]
-  ];
+  var TO_DIGIT = { G: "9", Q: "0", O: "0", I: "1", S: "5", B: "8", Z: "2" };
 
   function normalizeOcrText(value) {
     return String(value || "").normalize("NFKC").replace(DASHES, "-").replace(/\s+/g, " ").trim();
@@ -29,6 +20,19 @@
     if (w < 1 || h < 1) return { width: 1, height: 1, scale: 1 };
     var longEdge = Math.max(w, h);
     var scale = longEdge > limit ? limit / longEdge : 1;
+    return {
+      width: Math.max(1, Math.round(w * scale)),
+      height: Math.max(1, Math.round(h * scale)),
+      scale: scale
+    };
+  }
+
+  function scaleToLongEdge(width, height, edge) {
+    var limit = edge || CROP_LONG_EDGE;
+    var w = Number(width) || 0;
+    var h = Number(height) || 0;
+    if (w < 1 || h < 1) return { width: 1, height: 1, scale: 1 };
+    var scale = limit / Math.max(w, h);
     return {
       width: Math.max(1, Math.round(w * scale)),
       height: Math.max(1, Math.round(h * scale)),
@@ -89,14 +93,19 @@
     var source = tidyToken(String(token || "").toUpperCase());
     var variants = [];
     var seen = {};
-    PAIRS.forEach(function (pair) {
-      if (source.indexOf(pair[0]) === -1) return;
-      var next = source.split(pair[0]).join(pair[1]);
-      if (!next || next === source || seen[next]) return;
+    function add(next) {
+      if (variants.length >= 3 || !next || next === source || seen[next]) return;
       seen[next] = true;
       variants.push(next);
-    });
-    return variants.slice(0, 3);
+    }
+    var combined = source.replace(/[GQOISBZ]/g, function (ch) { return TO_DIGIT[ch]; });
+    add(combined);
+    for (var i = 0; i < source.length && variants.length < 3; i += 1) {
+      var digit = TO_DIGIT[source.charAt(i)];
+      if (!digit) continue;
+      add(source.slice(0, i) + digit + source.slice(i + 1));
+    }
+    return variants;
   }
 
   function searchMethod(query, chosen) {
@@ -109,12 +118,15 @@
 
   root.SedoriOcr = {
     LONG_EDGE: LONG_EDGE,
+    CROP_LONG_EDGE: CROP_LONG_EDGE,
     INIT_TIMEOUT_MS: INIT_TIMEOUT_MS,
     RECOGNIZE_TIMEOUT_MS: RECOGNIZE_TIMEOUT_MS,
     CHAR_WHITELIST: CHAR_WHITELIST,
     PAGE_MODE: PAGE_MODE,
+    LINE_MODE: LINE_MODE,
     normalizeOcrText: normalizeOcrText,
     fitLongEdge: fitLongEdge,
+    scaleToLongEdge: scaleToLongEdge,
     extractModelCandidates: extractModelCandidates,
     confusionVariants: confusionVariants,
     searchMethod: searchMethod

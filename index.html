@@ -48,6 +48,14 @@
           <p id="ocr-status" role="status"></p>
           <button type="button" id="ocr-cancel" class="secondary wide" hidden>読み取りを中止</button>
           <button type="button" id="ocr-retake" class="secondary wide" hidden>写真を撮り直す／別の写真を選ぶ</button>
+          <div id="ocr-crop" hidden>
+            <p class="note">型番の部分を囲むと、その範囲だけ読み取れます。写真全体の読み取りは、撮影後すぐに始まります。</p>
+            <div id="ocr-crop-frame">
+              <img id="ocr-crop-image" alt="読み取り中の写真">
+              <div id="ocr-crop-box"></div>
+            </div>
+            <button type="button" id="ocr-crop-read" class="secondary wide">選択した範囲を読む</button>
+          </div>
           <div id="ocr-result" hidden>
             <p class="note">読み取った文字です。正しい型番とは限りません。必要な部分を選択して検索欄に入れられます。</p>
             <label for="ocr-text">認識した文字</label>

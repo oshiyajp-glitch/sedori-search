@@ -224,6 +224,25 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
 
 .ocr-choice { width: 100%; }
 
+#ocr-crop-frame {
+  position: relative;
+  margin-top: 0.7rem;
+}
+
+#ocr-crop-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#ocr-crop-box {
+  position: absolute;
+  border: 2px solid #1d4e89;
+  background: rgba(29, 78, 137, 0.18);
+  box-sizing: border-box;
+  touch-action: none;
+}
+
 .toolbar, .filters { display: grid; gap: 0.55rem; margin-bottom: 0.8rem; }
 
 .card {

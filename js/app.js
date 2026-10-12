@@ -39,6 +39,9 @@
   var ocrWorker = null;
   var ocrRunning = false;
   var ocrChosen = "";
+  var ocrSourceImage = null;
+  var ocrBlobUrl = "";
+  var cropBox = { x: 0.15, y: 0.36, w: 0.7, h: 0.28 };
   var tesseractPromise = null;
   var BARCODE_MESSAGES = {
     insecure: "この接続ではカメラを使えません。iPhoneではHTTPSのページで開いてください。型番は手入力できます。",
@@ -365,24 +368,36 @@
     input.focus();
   }
 
-  function scaleOcrImage(file) {
+  function canvasFromImage(img, region, upscale) {
+    var sx = 0;
+    var sy = 0;
+    var sw = img.naturalWidth;
+    var sh = img.naturalHeight;
+    if (region) {
+      sx = region.x;
+      sy = region.y;
+      sw = region.w;
+      sh = region.h;
+    }
+    if (sw < 1 || sh < 1) throw new Error("crop");
+    var fitted = upscale
+      ? ocr.scaleToLongEdge(sw, sh, ocr.CROP_LONG_EDGE)
+      : ocr.fitLongEdge(sw, sh, ocr.LONG_EDGE);
+    var canvas = document.createElement("canvas");
+    canvas.width = fitted.width;
+    canvas.height = fitted.height;
+    var context = canvas.getContext("2d");
+    if (!context) throw new Error("canvas");
+    context.imageSmoothingEnabled = true;
+    context.drawImage(img, sx, sy, sw, sh, 0, 0, fitted.width, fitted.height);
+    return canvas;
+  }
+
+  function loadOcrFile(file) {
     return new Promise(function (resolve, reject) {
       var blobUrl = URL.createObjectURL(file);
       var img = new Image();
-      img.onload = function () {
-        URL.revokeObjectURL(blobUrl);
-        var fitted = ocr.fitLongEdge(img.naturalWidth, img.naturalHeight, ocr.LONG_EDGE);
-        var canvas = document.createElement("canvas");
-        canvas.width = fitted.width;
-        canvas.height = fitted.height;
-        var context = canvas.getContext("2d");
-        if (!context) {
-          reject(new Error("canvas"));
-          return;
-        }
-        context.drawImage(img, 0, 0, fitted.width, fitted.height);
-        resolve(canvas);
-      };
+      img.onload = function () { resolve({ img: img, url: blobUrl }); };
       img.onerror = function () {
         URL.revokeObjectURL(blobUrl);
         reject(new Error("image"));
@@ -391,10 +406,55 @@
     });
   }
 
-  function recognizeCanvas(worker, canvas) {
+  function applyCropBox() {
+    var box = document.getElementById("ocr-crop-box");
+    box.style.left = (cropBox.x * 100) + "%";
+    box.style.top = (cropBox.y * 100) + "%";
+    box.style.width = (cropBox.w * 100) + "%";
+    box.style.height = (cropBox.h * 100) + "%";
+  }
+
+  function clearCropSource() {
+    ocrSourceImage = null;
+    if (ocrBlobUrl) URL.revokeObjectURL(ocrBlobUrl);
+    ocrBlobUrl = "";
+    var image = document.getElementById("ocr-crop-image");
+    if (image) image.removeAttribute("src");
+    var crop = document.getElementById("ocr-crop");
+    if (crop) crop.hidden = true;
+  }
+
+  function showCropSource(img, blobUrl) {
+    if (ocrBlobUrl && ocrBlobUrl !== blobUrl) URL.revokeObjectURL(ocrBlobUrl);
+    ocrBlobUrl = blobUrl;
+    ocrSourceImage = img;
+    cropBox = { x: 0.15, y: 0.36, w: 0.7, h: 0.28 };
+    document.getElementById("ocr-crop-image").src = blobUrl;
+    document.getElementById("ocr-crop").hidden = false;
+    applyCropBox();
+  }
+
+  function cropNaturalRect() {
+    var img = ocrSourceImage;
+    if (!img) return null;
+    var width = img.naturalWidth;
+    var height = img.naturalHeight;
+    var x = Math.round(cropBox.x * width);
+    var y = Math.round(cropBox.y * height);
+    var w = Math.round(cropBox.w * width);
+    var h = Math.round(cropBox.h * height);
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + w > width) w = width - x;
+    if (y + h > height) h = height - y;
+    if (w < 1 || h < 1) return null;
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function recognizeCanvas(worker, canvas, pageMode) {
     return worker.setParameters({
       tessedit_char_whitelist: ocr.CHAR_WHITELIST,
-      tessedit_pageseg_mode: ocr.PAGE_MODE
+      tessedit_pageseg_mode: pageMode
     }).then(function () {
       return worker.recognize(canvas);
     }).then(function (result) {
@@ -402,12 +462,63 @@
     });
   }
 
-  function finishOcr(id, text) {
+  function ensureOcrWorker(id) {
+    if (ocrWorker) return Promise.resolve(ocrWorker);
+    var base = tesseractBase();
+    return loadTesseract().then(function (Tesseract) {
+      if (id !== ocrJob) return null;
+      var creating = Tesseract.createWorker("eng", 1, {
+        workerPath: base + "/worker.min.js",
+        corePath: base,
+        langPath: base,
+        workerBlobURL: true,
+        gzip: true
+      });
+      var timed = withTimeout(creating, ocr.INIT_TIMEOUT_MS);
+      timed.catch(function () {
+        creating.then(function (worker) {
+          if (worker && worker.terminate) worker.terminate();
+        }).catch(function () {});
+      });
+      return timed.then(function (worker) {
+        if (!worker || id !== ocrJob) {
+          if (worker && worker.terminate) worker.terminate();
+          return null;
+        }
+        ocrWorker = worker;
+        return worker;
+      });
+    });
+  }
+
+  function failOcr(id, error) {
     if (id !== ocrJob) return;
+    ocrRunning = false;
     var worker = ocrWorker;
     ocrWorker = null;
-    ocrRunning = false;
     if (worker && worker.terminate) worker.terminate();
+    if (error && error.name === "TimeoutError") renderOcr("timeout");
+    else if (error && error.message === "library") renderOcr("library");
+    else renderOcr("failed");
+  }
+
+  function runOcrCanvas(id, canvas, pageMode) {
+    ocrRunning = true;
+    renderOcr("loading");
+    ensureOcrWorker(id).then(function (worker) {
+      if (!worker || id !== ocrJob) return null;
+      return withTimeout(recognizeCanvas(worker, canvas, pageMode), ocr.RECOGNIZE_TIMEOUT_MS);
+    }).then(function (text) {
+      if (text == null || id !== ocrJob) return;
+      finishOcr(id, text);
+    }).catch(function (error) {
+      failOcr(id, error);
+    });
+  }
+
+  function finishOcr(id, text) {
+    if (id !== ocrJob) return;
+    ocrRunning = false;
     var source = String(text || "");
     var candidates = ocr.extractModelCandidates(source);
     var variants = candidates.length ? ocr.confusionVariants(candidates[0]).filter(function (item) {
@@ -436,51 +547,101 @@
       return;
     }
     stopBarcodeCamera();
+    clearCropSource();
     var id = ++ocrJob;
     if (ocrWorker && ocrWorker.terminate) ocrWorker.terminate();
     ocrWorker = null;
     ocrRunning = true;
     renderOcr("loading");
-    var base = tesseractBase();
-    loadTesseract().then(function (Tesseract) {
-      if (id !== ocrJob) return null;
-      var creating = Tesseract.createWorker("eng", 1, {
-        workerPath: base + "/worker.min.js",
-        corePath: base,
-        langPath: base,
-        workerBlobURL: true,
-        gzip: true
-      });
-      var timed = withTimeout(creating, ocr.INIT_TIMEOUT_MS);
-      timed.catch(function () {
-        creating.then(function (worker) {
-          if (worker && worker.terminate) worker.terminate();
-        }).catch(function () {});
-      });
-      return timed;
-    }).then(function (worker) {
-      if (!worker || id !== ocrJob) {
-        if (worker && worker.terminate) worker.terminate();
-        return null;
+    loadOcrFile(file).then(function (loaded) {
+      if (id !== ocrJob) {
+        URL.revokeObjectURL(loaded.url);
+        return;
       }
-      ocrWorker = worker;
-      return scaleOcrImage(file).then(function (canvas) {
-        if (id !== ocrJob) return null;
-        return withTimeout(recognizeCanvas(worker, canvas), ocr.RECOGNIZE_TIMEOUT_MS);
-      });
-    }).then(function (text) {
-      if (text == null || id !== ocrJob) return;
-      finishOcr(id, text);
+      showCropSource(loaded.img, loaded.url);
+      runOcrCanvas(id, canvasFromImage(loaded.img, null, false), ocr.PAGE_MODE);
     }).catch(function (error) {
-      if (id !== ocrJob) return;
-      var worker = ocrWorker;
-      ocrWorker = null;
-      ocrRunning = false;
-      if (worker && worker.terminate) worker.terminate();
-      if (error && error.name === "TimeoutError") renderOcr("timeout");
-      else if (error && error.message === "library") renderOcr("library");
-      else renderOcr("failed");
+      failOcr(id, error);
     });
+  }
+
+  function readSelectedRegion() {
+    if (!ocrSourceImage) return;
+    if (typeof Worker !== "function" || typeof WebAssembly !== "object") {
+      renderOcr("unsupported");
+      return;
+    }
+    var region = cropNaturalRect();
+    if (!region) return;
+    var id = ++ocrJob;
+    if (ocrWorker && ocrRunning) {
+      ocrWorker.terminate();
+      ocrWorker = null;
+    }
+    var canvas;
+    try {
+      canvas = canvasFromImage(ocrSourceImage, region, true);
+    } catch (error) {
+      failOcr(id, error);
+      return;
+    }
+    runOcrCanvas(id, canvas, ocr.LINE_MODE);
+  }
+
+  function moveCropBox(event) {
+    var frame = document.getElementById("ocr-crop-frame");
+    var rect = frame.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var px = (event.clientX - rect.left) / rect.width;
+    var py = (event.clientY - rect.top) / rect.height;
+    var mode = "move";
+    var boxRect = document.getElementById("ocr-crop-box").getBoundingClientRect();
+    var edge = 28;
+    if (Math.abs(event.clientX - boxRect.left) <= edge) mode = "left";
+    else if (Math.abs(event.clientX - boxRect.right) <= edge) mode = "right";
+    else if (Math.abs(event.clientY - boxRect.top) <= edge) mode = "top";
+    else if (Math.abs(event.clientY - boxRect.bottom) <= edge) mode = "bottom";
+    var start = { x: cropBox.x, y: cropBox.y, w: cropBox.w, h: cropBox.h, px: px, py: py, mode: mode };
+    function clampBox(next) {
+      var minSize = 0.12;
+      if (next.w < minSize) next.w = minSize;
+      if (next.h < minSize) next.h = minSize;
+      if (next.x < 0) next.x = 0;
+      if (next.y < 0) next.y = 0;
+      if (next.x + next.w > 1) next.x = 1 - next.w;
+      if (next.y + next.h > 1) next.y = 1 - next.h;
+      return next;
+    }
+    var box = document.getElementById("ocr-crop-box");
+    if (box.setPointerCapture) box.setPointerCapture(event.pointerId);
+    function onMove(move) {
+      var dx = ((move.clientX - rect.left) / rect.width) - start.px;
+      var dy = ((move.clientY - rect.top) / rect.height) - start.py;
+      var next = { x: start.x, y: start.y, w: start.w, h: start.h };
+      if (start.mode === "move") {
+        next.x += dx;
+        next.y += dy;
+      } else if (start.mode === "left") {
+        next.x += dx;
+        next.w -= dx;
+      } else if (start.mode === "right") {
+        next.w += dx;
+      } else if (start.mode === "top") {
+        next.y += dy;
+        next.h -= dy;
+      } else if (start.mode === "bottom") {
+        next.h += dy;
+      }
+      cropBox = clampBox(next);
+      applyCropBox();
+    }
+    function onUp() {
+      box.removeEventListener("pointermove", onMove);
+      box.removeEventListener("pointerup", onUp);
+    }
+    box.addEventListener("pointermove", onMove);
+    box.addEventListener("pointerup", onUp);
+    event.preventDefault();
   }
 
   function openOcrPicker() {
@@ -554,6 +715,7 @@
     if (name !== "search") {
       stopBarcodeCamera();
       if (ocrRunning) cancelOcr();
+      else if (ocrWorker) stopOcrWorker();
     }
   }
 
@@ -1479,6 +1641,8 @@
   document.getElementById("open-ocr").addEventListener("click", openOcrPicker);
   document.getElementById("ocr-retake").addEventListener("click", openOcrPicker);
   document.getElementById("ocr-cancel").addEventListener("click", cancelOcr);
+  document.getElementById("ocr-crop-read").addEventListener("click", readSelectedRegion);
+  document.getElementById("ocr-crop-box").addEventListener("pointerdown", moveCropBox);
   document.getElementById("ocr-file").addEventListener("change", function () {
     var file = this.files && this.files[0];
     this.value = "";
@@ -1505,6 +1669,7 @@
   window.addEventListener("pagehide", function () {
     stopBarcodeCamera();
     if (ocrRunning) cancelOcr();
+    else if (ocrWorker) stopOcrWorker();
   });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") stopBarcodeCamera();
