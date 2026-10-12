@@ -1,0 +1,307 @@
+:root {
+  --bg: #f3efe6;
+  --ink: #1c1917;
+  --muted: #44403c;
+  --line: #d6d0c6;
+  --card: #fffdf8;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body { margin: 0; }
+
+body {
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  line-height: 1.4;
+}
+
+button, input, select, textarea { font: inherit; }
+
+button { cursor: pointer; }
+
+.save-alert {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: #7f1d1d;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.app-shell {
+  max-width: 28rem;
+  margin: 0 auto;
+  padding:
+    calc(1rem + env(safe-area-inset-top))
+    calc(1rem + env(safe-area-inset-right))
+    calc(5.4rem + env(safe-area-inset-bottom))
+    calc(1rem + env(safe-area-inset-left));
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.25rem;
+}
+
+.lead, .hint, .note {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.note { margin-top: 0.8rem; }
+
+label, .field-label {
+  display: block;
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+input[type="search"],
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  min-height: 3.1rem;
+  padding: 0.7rem 0.85rem;
+  border: 2px solid var(--line);
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+textarea { min-height: 6.5rem; resize: vertical; }
+
+input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.field-row, .split, .dialog-actions, .card-actions, .editor-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.field-row input { flex: 1; min-width: 0; }
+
+#clear, .secondary, .danger, .primary, .tabbar button, .site, #open-all {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#clear, .secondary, .danger {
+  min-height: 3.1rem;
+  padding: 0.65rem 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.danger { color: #9f1239; }
+
+.primary, #open-all {
+  min-height: 3.4rem;
+  border: 0;
+  border-radius: 0.9rem;
+  background: var(--ink);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+#open-all {
+  width: 100%;
+  margin-top: 0.75rem;
+  min-height: 4.1rem;
+  font-size: 1.22rem;
+  background: #e7e0d4;
+  color: #44403c;
+}
+
+#open-all.is-ready { background: var(--ink); color: #fff; }
+
+#open-all:active, .site:active, .primary:active { transform: scale(0.985); }
+
+#status {
+  min-height: 1.35rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.sites, .stack { display: grid; gap: 0.7rem; }
+
+.sites { margin-top: 0.85rem; }
+
+.site {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 4.6rem;
+  padding: 0.7rem 1rem 0.75rem 1.15rem;
+  border-radius: 0.95rem;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: inset 7px 0 0 rgba(0, 0, 0, 0.2);
+}
+
+.site[aria-disabled="true"] { cursor: default; }
+
+.site-name { font-size: 1.18rem; font-weight: 800; }
+.site-kind { font-size: 0.95rem; font-weight: 700; }
+.site-note { margin-top: 0.12rem; font-size: 0.78rem; font-weight: 700; }
+
+.ebay { background: #0064d2; }
+.yahoo { background: #d70018; }
+.mercari { background: #111; }
+
+.wide { width: 100%; margin-top: 0.9rem; }
+
+#barcode-video {
+  width: 100%;
+  max-height: 16rem;
+  margin-top: 0.7rem;
+  border-radius: 0.9rem;
+  background: #111;
+  object-fit: cover;
+}
+
+#barcode-status {
+  min-height: 1.35rem;
+  margin: 0.7rem 0 0;
+  font-weight: 800;
+}
+
+.toolbar, .filters { display: grid; gap: 0.55rem; margin-bottom: 0.8rem; }
+
+.card {
+  padding: 0.85rem;
+  border: 2px solid var(--line);
+  border-radius: 0.95rem;
+  background: var(--card);
+}
+
+.card + .card { margin-top: 0.65rem; }
+
+.card.is-favorite, .profit-card.is-best { border-color: #1c1917; }
+
+.profit-value {
+  margin: 0.35rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.profit-value.is-negative { color: #9f1239; }
+
+.profit-lines {
+  margin: 0.45rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.best-note {
+  margin: 0.9rem 0 0;
+  font-weight: 800;
+}
+
+.keyword-button, .linkish {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.meta, .empty, .code-note {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.code-note.is-bad { color: #9f1239; font-weight: 800; }
+
+.card-actions { margin-top: 0.7rem; }
+
+.card-actions button, .editor-actions button { flex: 1; }
+
+.editor-actions {
+  position: sticky;
+  bottom: calc(4.3rem + env(safe-area-inset-bottom));
+  padding: 0.6rem 0;
+  background: var(--bg);
+}
+
+.market {
+  margin-top: 1rem;
+  padding-top: 0.4rem;
+  border-top: 2px solid var(--line);
+}
+
+.tabbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 7;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line);
+  background: #fffdf8;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tabbar button {
+  min-height: 3.4rem;
+  border: 0;
+  background: transparent;
+  color: #57534e;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tabbar button[aria-current="page"] {
+  color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--ink);
+}
+
+dialog {
+  width: min(24rem, calc(100% - 2rem));
+  padding: 1.1rem;
+  border: 0;
+  border-radius: 1rem;
+  color: var(--ink);
+}
+
+dialog::backdrop { background: rgba(28, 25, 23, 0.45); }
+
+dialog h2 { margin-bottom: 0.4rem; }
+
+.dialog-actions { margin-top: 1rem; }
+
+.dialog-actions button { flex: 1; }
+
+#export-json { margin-top: 0.7rem; }
+
+noscript { display: block; margin-top: 1rem; font-weight: 800; }

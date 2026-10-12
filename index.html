@@ -10,364 +10,239 @@
   <meta name="theme-color" content="#1c1917">
   <meta name="robots" content="noindex, nofollow">
   <title>相場検索</title>
-  <style>
-    :root {
-      --bg: #f3efe6;
-      --ink: #1c1917;
-      --muted: #57534e;
-      --line: #d6d0c6;
-      color-scheme: light;
-    }
-
-    * { box-sizing: border-box; }
-
-    html, body { margin: 0; }
-
-    body {
-      min-height: 100dvh;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-      line-height: 1.4;
-    }
-
-    main {
-      max-width: 28rem;
-      margin: 0 auto;
-      padding:
-        calc(1.1rem + env(safe-area-inset-top))
-        calc(1rem + env(safe-area-inset-right))
-        calc(1.4rem + env(safe-area-inset-bottom))
-        calc(1rem + env(safe-area-inset-left));
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 1.7rem;
-      font-weight: 800;
-      letter-spacing: 0.01em;
-    }
-
-    .lead {
-      margin: 0.2rem 0 1rem;
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 0.4rem;
-      font-size: 0.92rem;
-      font-weight: 700;
-    }
-
-    .field {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    input[type="search"] {
-      flex: 1;
-      min-width: 0;
-      height: 3.5rem;
-      padding: 0 0.95rem;
-      border: 2px solid var(--line);
-      border-radius: 0.9rem;
-      background: #fff;
-      color: var(--ink);
-      font: inherit;
-      font-size: 1.15rem;
-      -webkit-appearance: none;
-      appearance: none;
-    }
-
-    input[type="search"]::-webkit-search-cancel-button {
-      -webkit-appearance: none;
-      appearance: none;
-    }
-
-    input[type="search"]:focus {
-      outline: 3px solid var(--ink);
-      outline-offset: 1px;
-      border-color: var(--ink);
-    }
-
-    #clear,
-    #open-all,
-    .site {
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-
-    #clear {
-      flex: 0 0 auto;
-      height: 3.5rem;
-      padding: 0 0.95rem;
-      border: 2px solid var(--line);
-      border-radius: 0.9rem;
-      background: #fff;
-      color: var(--ink);
-      font: inherit;
-      font-size: 0.95rem;
-      font-weight: 700;
-    }
-
-    #clear[hidden] { display: none; }
-
-    #open-all {
-      width: 100%;
-      margin-top: 0.75rem;
-      min-height: 4.1rem;
-      border: 0;
-      border-radius: 0.95rem;
-      background: #e7e0d4;
-      color: #44403c;
-      font: inherit;
-      font-size: 1.22rem;
-      font-weight: 800;
-    }
-
-    #open-all.is-ready {
-      background: var(--ink);
-      color: #fff;
-    }
-
-    #open-all:focus-visible,
-    #clear:focus-visible,
-    .site:focus-visible {
-      outline: 3px solid var(--ink);
-      outline-offset: 3px;
-    }
-
-    #open-all:active,
-    .site:active { transform: scale(0.985); }
-
-    .hint {
-      margin: 0.65rem 0 0;
-      color: #44403c;
-      font-size: 0.84rem;
-    }
-
-    #status {
-      min-height: 1.35rem;
-      margin: 0.35rem 0 0;
-      color: var(--ink);
-      font-size: 0.95rem;
-      font-weight: 800;
-    }
-
-    .sites {
-      display: grid;
-      gap: 0.7rem;
-      margin-top: 0.85rem;
-    }
-
-    .site {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      min-height: 4.6rem;
-      padding: 0.7rem 1rem 0.75rem 1.15rem;
-      border-radius: 0.95rem;
-      color: #fff;
-      text-decoration: none;
-      box-shadow: inset 7px 0 0 rgba(0, 0, 0, 0.2);
-    }
-
-    .site[aria-disabled="true"] { cursor: default; }
-
-    .site-name {
-      font-size: 1.18rem;
-      font-weight: 800;
-    }
-
-    .site-kind {
-      font-size: 0.95rem;
-      font-weight: 700;
-    }
-
-    .site-note {
-      margin-top: 0.12rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      opacity: 0.88;
-    }
-
-    .ebay { background: #0064d2; }
-    .yahoo { background: #d70018; }
-    .mercari { background: #111; }
-
-    button { cursor: pointer; }
-    .site { cursor: pointer; }
-
-    noscript {
-      display: block;
-      margin-top: 1rem;
-      font-weight: 700;
-    }
-  </style>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <main>
-    <h1>相場検索</h1>
-    <p class="lead">型番を入れると、販売済みの検索を開けます。</p>
+  <p id="save-alert" class="save-alert" role="alert" hidden></p>
+  <div class="app-shell">
+    <section id="view-search">
+      <h1>相場検索</h1>
+      <p class="lead">型番を入れると、販売済みの検索を開けます。</p>
+      <form id="search-form" autocomplete="off">
+        <label for="query">型番・キーワード</label>
+        <div class="field-row">
+          <input id="query" name="query" type="search" inputmode="text" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="例: SM58-LCE" autofocus>
+          <button type="button" id="clear" hidden>クリア</button>
+        </div>
+        <button type="button" id="open-barcode" class="secondary wide">バーコードを読む</button>
+        <p class="hint">JAN・EAN-13、EAN-8、UPC-Aを読めます。ISBN-10は手入力してください。読み取ったあとは、確認してから検索します。</p>
+        <div id="barcode-panel" hidden>
+          <p id="barcode-status" role="status"></p>
+          <video id="barcode-video" playsinline webkit-playsinline muted autoplay disablepictureinpicture></video>
+          <button type="button" id="barcode-close" class="secondary wide">カメラを閉じる</button>
+        </div>
+        <button type="submit" id="open-all" aria-disabled="true">3サイトを開く</button>
+        <p class="hint">各サイトは、下のボタンから個別に開けます。</p>
+        <p id="status" role="status" aria-live="polite"></p>
+      </form>
+      <nav class="sites" aria-label="各サイトの検索">
+        <a id="link-ebay" class="site ebay" role="link" aria-disabled="true" tabindex="-1">
+          <span class="site-name">eBay</span>
+          <span class="site-kind">販売済み</span>
+          <span class="site-note">ログインが必要なことがあります</span>
+        </a>
+        <a id="link-yahoo" class="site yahoo" role="link" aria-disabled="true" tabindex="-1">
+          <span class="site-name">ヤフオク</span>
+          <span class="site-kind">落札済み</span>
+        </a>
+        <a id="link-mercari" class="site mercari" role="link" aria-disabled="true" tabindex="-1">
+          <span class="site-name">メルカリ</span>
+          <span class="site-kind">売り切れ</span>
+        </a>
+      </nav>
+      <button type="button" id="open-profit" class="secondary wide">利益計算</button>
+      <button type="button" id="add-candidate" class="primary wide">仕入れ候補に追加</button>
+    </section>
 
-    <form id="search-form" autocomplete="off">
-      <label for="query">型番・キーワード</label>
-      <div class="field">
-        <input
-          id="query"
-          name="query"
-          type="search"
-          inputmode="text"
-          enterkeyhint="search"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          autocomplete="off"
-          placeholder="例: SM58-LCE"
-          autofocus
-        >
-        <button type="button" id="clear" hidden>クリア</button>
+    <section id="view-profit" hidden>
+      <button type="button" id="profit-back" class="secondary">検索に戻る</button>
+      <h2>利益計算</h2>
+      <p class="note">eBayの結果は概算です。実際の手数料はカテゴリや国際取引で変わります。</p>
+      <p class="note">最も高い販売先は、利益額だけの比較です。販売速度や需要は見ていません。</p>
+      <label for="profit-cost">仕入価格（円）</label>
+      <input id="profit-cost" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <label for="profit-domestic">国内の想定販売価格（円）</label>
+      <input id="profit-domestic" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <p class="hint">ヤフオクとメルカリは、この販売価格にそれぞれの手数料・送料・その他経費を当てます。</p>
+      <label for="profit-item-usd">eBay商品価格（USD）</label>
+      <input id="profit-item-usd" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <label for="profit-ship-usd">購入者負担送料（USD）</label>
+      <input id="profit-ship-usd" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <label for="profit-rate">為替レート（円 / 1USD）</label>
+      <input id="profit-rate" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <label for="profit-target">目標利益（円）</label>
+      <input id="profit-target" type="text" inputmode="decimal" maxlength="12" autocomplete="off">
+      <p id="profit-target-note" class="hint"></p>
+      <p id="profit-conditions" class="meta"></p>
+      <button type="button" id="profit-settings" class="secondary wide">手数料・送料の設定を開く</button>
+      <p id="profit-best" class="best-note"></p>
+      <div id="profit-results" aria-live="polite"></div>
+      <p id="profit-status" role="status"></p>
+      <button type="button" id="profit-save" class="primary wide">この結果を仕入れ候補に保存</button>
+    </section>
+
+    <section id="view-history" hidden>
+      <h2>検索履歴</h2>
+      <div class="toolbar">
+        <label for="history-filter">履歴を検索</label>
+        <input id="history-filter" type="search" placeholder="キーワード" autocomplete="off">
+        <button type="button" id="history-clear" class="danger">履歴をすべて削除</button>
       </div>
-      <button type="submit" id="open-all" aria-disabled="true">3サイトを開く</button>
-      <p class="hint">各サイトは、下のボタンから個別に開けます。</p>
-      <p id="status" role="status" aria-live="polite"></p>
-    </form>
+      <div id="history-list"></div>
+    </section>
 
-    <nav class="sites" aria-label="各サイトの検索">
-      <a id="link-ebay" class="site ebay" role="link" aria-disabled="true" tabindex="-1">
-        <span class="site-name">eBay</span>
-        <span class="site-kind">販売済み</span>
-        <span class="site-note">ログインが必要なことがあります</span>
-      </a>
-      <a id="link-yahoo" class="site yahoo" role="link" aria-disabled="true" tabindex="-1">
-        <span class="site-name">ヤフオク</span>
-        <span class="site-kind">落札済み</span>
-      </a>
-      <a id="link-mercari" class="site mercari" role="link" aria-disabled="true" tabindex="-1">
-        <span class="site-name">メルカリ</span>
-        <span class="site-kind">売り切れ</span>
-      </a>
-    </nav>
+    <section id="view-candidates" hidden>
+      <div id="candidate-list-wrap">
+        <h2>仕入れ候補</h2>
+        <div class="filters">
+          <label for="candidate-filter">候補を検索</label>
+          <input id="candidate-filter" type="search" placeholder="型番・店名・メモ" autocomplete="off">
+          <label for="candidate-status-filter">ステータス</label>
+          <select id="candidate-status-filter">
+            <option value="">すべて</option>
+            <option value="undecided">未判断</option>
+            <option value="buy">購入候補</option>
+            <option value="pass">見送り</option>
+            <option value="purchased">購入済み</option>
+          </select>
+          <button type="button" id="candidate-add" class="primary">新しく追加</button>
+        </div>
+        <div id="candidate-list"></div>
+      </div>
+      <form id="candidate-form" hidden autocomplete="off">
+        <h2 id="candidate-form-title">仕入れ候補</h2>
+        <label for="candidate-name">商品名</label>
+        <input id="candidate-name" type="text" maxlength="200">
+        <label for="candidate-maker">メーカー</label>
+        <input id="candidate-maker" type="text" maxlength="120">
+        <label for="candidate-model">型番</label>
+        <input id="candidate-model" type="text" maxlength="120" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <label for="candidate-code">JAN・ISBN</label>
+        <input id="candidate-code" type="text" inputmode="numeric" maxlength="30" autocapitalize="off" spellcheck="false" placeholder="13桁またはISBN-10">
+        <p id="code-note" class="code-note" role="status"></p>
+        <label for="candidate-category">商品カテゴリ</label>
+        <input id="candidate-category" type="text" maxlength="80">
+        <label for="candidate-cost">仕入れ予定価格（円）</label>
+        <input id="candidate-cost" type="text" inputmode="decimal" maxlength="12">
+        <label for="candidate-shop">店舗名</label>
+        <input id="candidate-shop" type="text" maxlength="120">
+        <label for="candidate-condition">商品状態</label>
+        <input id="candidate-condition" type="text" maxlength="80">
+        <label for="candidate-accessories">付属品</label>
+        <input id="candidate-accessories" type="text" maxlength="200">
+        <label for="candidate-domestic-price">国内想定販売価格（円）</label>
+        <input id="candidate-domestic-price" type="text" inputmode="decimal" maxlength="12">
+        <label for="candidate-overseas-price">海外想定販売価格（USD）</label>
+        <input id="candidate-overseas-price" type="text" inputmode="decimal" maxlength="12">
+        <div id="saved-calc" class="card" hidden></div>
+        <button type="button" id="candidate-open-profit" class="secondary wide">利益計算を開く</button>
+        <button type="button" id="candidate-recalc" class="secondary wide">現在の設定で再計算</button>
+        <label for="candidate-memo">メモ</label>
+        <textarea id="candidate-memo" maxlength="2000"></textarea>
+        <label for="candidate-status">ステータス</label>
+        <select id="candidate-status">
+          <option value="undecided">未判断</option>
+          <option value="buy">購入候補</option>
+          <option value="pass">見送り</option>
+          <option value="purchased">購入済み</option>
+        </select>
+        <div class="editor-actions">
+          <button type="button" id="candidate-cancel" class="secondary">キャンセル</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+        <button type="button" id="candidate-delete" class="danger wide" hidden>この候補を削除</button>
+      </form>
+    </section>
+
+    <section id="view-settings" hidden>
+      <h2>設定</h2>
+      <p class="note">手数料・送料・その他経費は、販売先ごとに保存します。空欄は未設定です。公式手数料を自動では入れません。目標利益が空欄のときは0円として仕入れ上限を計算します。</p>
+      <form id="settings-form" autocomplete="off">
+        <div class="market">
+          <h3>利益計算</h3>
+          <label for="setting-rate">為替レート（円 / 1USD）</label>
+          <input id="setting-rate" type="text" inputmode="decimal" maxlength="12">
+          <label for="setting-target">目標利益（円）</label>
+          <input id="setting-target" type="text" inputmode="decimal" maxlength="12">
+        </div>
+        <div class="market">
+          <h3>eBay</h3>
+          <label for="ebay-fee">販売手数料率（%）</label>
+          <input id="ebay-fee" type="text" inputmode="decimal" maxlength="6">
+          <label for="ebay-base">手数料の対象</label>
+          <select id="ebay-base">
+            <option value="">未設定</option>
+            <option value="item_only">商品価格のみ</option>
+            <option value="item_plus_shipping">商品価格＋購入者負担送料</option>
+          </select>
+          <label for="ebay-fixed">固定手数料（円）</label>
+          <input id="ebay-fixed" type="text" inputmode="decimal" maxlength="12">
+          <label for="ebay-ship">国際送料（円）</label>
+          <input id="ebay-ship" type="text" inputmode="decimal" maxlength="12">
+          <label for="ebay-duty">関税・税金のセラー負担（円）</label>
+          <input id="ebay-duty" type="text" inputmode="decimal" maxlength="12">
+          <label for="ebay-other">その他経費（円）</label>
+          <input id="ebay-other" type="text" inputmode="decimal" maxlength="12">
+        </div>
+        <div class="market">
+          <h3>ヤフオク</h3>
+          <label for="yahoo-fee">販売手数料率（%）</label>
+          <input id="yahoo-fee" type="text" inputmode="decimal" maxlength="6">
+          <label for="yahoo-ship">送料（円）</label>
+          <input id="yahoo-ship" type="text" inputmode="decimal" maxlength="12">
+          <label for="yahoo-other">その他経費（円）</label>
+          <input id="yahoo-other" type="text" inputmode="decimal" maxlength="12">
+        </div>
+        <div class="market">
+          <h3>メルカリ</h3>
+          <label for="mercari-fee">販売手数料率（%）</label>
+          <input id="mercari-fee" type="text" inputmode="decimal" maxlength="6">
+          <label for="mercari-ship">送料（円）</label>
+          <input id="mercari-ship" type="text" inputmode="decimal" maxlength="12">
+          <label for="mercari-other">その他経費（円）</label>
+          <input id="mercari-other" type="text" inputmode="decimal" maxlength="12">
+        </div>
+      </form>
+      <p id="settings-status" role="status"></p>
+      <div class="stack">
+        <button type="button" id="export-button" class="primary">JSONを書き出す</button>
+        <label for="import-file">JSONを読み込む</label>
+        <input id="import-file" type="file" accept="application/json,.json">
+      </div>
+      <details>
+        <summary>書き出した内容を表示</summary>
+        <textarea id="export-json" readonly></textarea>
+      </details>
+      <p class="note">データはこのブラウザの中だけに保存されます。サイトデータを消すと消えます。ホーム画面のアイコンとSafariでは、保存先が別になることがあります。</p>
+    </section>
     <noscript>このページはJavaScriptが必要です。Safariの設定でJavaScriptを有効にしてください。</noscript>
-  </main>
+  </div>
 
-  <script>
-    // 2026-10-11 に公式ページで確認した検索URL。
-    // eBay: LH_Sold=1 & LH_Complete=1 は販売済み。未ログインだとログイン画面へ渡り、戻り先に検索条件が残る。
-    // ヤフオク: /closedsearch/closedsearch?p= が落札相場。
-    // メルカリ: 絞り込み「売り切れ」の値は sold_out|trading。
-    (function () {
-      var input = document.getElementById("query");
-      var form = document.getElementById("search-form");
-      var status = document.getElementById("status");
-      var clearButton = document.getElementById("clear");
-      var openAllButton = document.getElementById("open-all");
-      var links = {
-        ebay: document.getElementById("link-ebay"),
-        yahoo: document.getElementById("link-yahoo"),
-        mercari: document.getElementById("link-mercari")
-      };
-      var dashes = /[\u2010\u2011\u2012\u2013\u2014\u2212\uFE63\uFF0D]/g;
+  <nav class="tabbar" aria-label="画面">
+    <button type="button" id="tab-search" aria-current="page">検索</button>
+    <button type="button" id="tab-history">履歴</button>
+    <button type="button" id="tab-candidates">候補</button>
+    <button type="button" id="tab-settings">設定</button>
+  </nav>
 
-      function normalizeQuery(value) {
-        return value.normalize("NFKC").replace(dashes, "-").trim().replace(/\s+/g, " ");
-      }
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-body"></p>
+      <div class="dialog-actions">
+        <button type="submit" value="cancel" class="secondary">キャンセル</button>
+        <button type="submit" id="confirm-ok" value="ok" class="danger">削除する</button>
+      </div>
+    </form>
+  </dialog>
 
-      function buildUrls(query) {
-        var q = encodeURIComponent(query);
-        return {
-          ebay: "https://www.ebay.com/sch/i.html?_nkw=" + q + "&_sacat=0&LH_Sold=1&LH_Complete=1&rt=nc&_sop=13",
-          yahoo: "https://auctions.yahoo.co.jp/closedsearch/closedsearch?p=" + q,
-          mercari: "https://jp.mercari.com/search?keyword=" + q + "&status=" + encodeURIComponent("sold_out|trading")
-        };
-      }
-
-      function currentQuery() {
-        return normalizeQuery(input.value);
-      }
-
-      function setStatus(message) {
-        status.textContent = message;
-      }
-
-      function sync() {
-        var query = currentQuery();
-        var ready = query.length > 0;
-        var urls = ready ? buildUrls(query) : null;
-        openAllButton.classList.toggle("is-ready", ready);
-        openAllButton.setAttribute("aria-disabled", ready ? "false" : "true");
-        clearButton.hidden = input.value.length === 0;
-        Object.keys(links).forEach(function (id) {
-          var link = links[id];
-          if (ready) {
-            link.href = urls[id];
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            link.setAttribute("aria-disabled", "false");
-            link.tabIndex = 0;
-          } else {
-            link.removeAttribute("href");
-            link.removeAttribute("target");
-            link.removeAttribute("rel");
-            link.setAttribute("aria-disabled", "true");
-            link.tabIndex = -1;
-          }
-        });
-      }
-
-      function openAllSites(urls) {
-        ["ebay", "yahoo", "mercari"].forEach(function (id) {
-          var popup = window.open(urls[id], "_blank");
-          if (popup) {
-            try { popup.opener = null; } catch (error) {}
-          }
-        });
-        // 開いた先が別サイトだと、成功しても window の参照が null になる。
-        // iPhone では2件目以降が止まることもあるので、個別ボタンを案内する。
-        setStatus("開きました。足りないサイトは下のボタンを押してください。");
-      }
-
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        var query = currentQuery();
-        if (!query) {
-          setStatus("型番を入力してください。");
-          input.focus();
-          return;
-        }
-        if (input.value !== query) {
-          input.value = query;
-        }
-        sync();
-        openAllSites(buildUrls(query));
-      });
-
-      input.addEventListener("input", function () {
-        setStatus("");
-        sync();
-      });
-
-      clearButton.addEventListener("click", function () {
-        input.value = "";
-        setStatus("");
-        sync();
-        input.focus();
-      });
-
-      Object.keys(links).forEach(function (id) {
-        links[id].addEventListener("click", function (event) {
-          if (!links[id].getAttribute("href")) {
-            event.preventDefault();
-            setStatus("型番を入力してください。");
-            input.focus();
-          }
-        });
-      });
-
-      sync();
-    })();
-  </script>
+  <script src="vendor/zxing/zxing.min.js"></script>
+  <script src="js/urls.js"></script>
+  <script src="js/codes.js"></script>
+  <script src="js/barcode.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
