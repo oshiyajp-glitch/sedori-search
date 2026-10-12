@@ -1,0 +1,10 @@
+This directory is loaded only after the user chooses a photo.
+
+Included components, all under the Apache License, Version 2.0 (see LICENSE.md):
+
+- Tesseract.js 6.0.1: tesseract.min.js, worker.min.js
+- tesseract.js-core 6.0.0, LSTM only: tesseract-core-lstm.wasm.js, tesseract-core-simd-lstm.wasm.js
+- English traineddata 4.0.0_best_int: eng.traineddata.gz
+
+The app passes workerPath, corePath, and langPath to these local files.
+Photos are not uploaded. The default CDN address inside the library is not used.

@@ -211,6 +211,19 @@ input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible
   white-space: pre-wrap;
 }
 
+#ocr-text {
+  min-height: 6.5rem;
+  white-space: pre-wrap;
+}
+
+#ocr-candidates {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.ocr-choice { width: 100%; }
+
 .toolbar, .filters { display: grid; gap: 0.55rem; margin-bottom: 0.8rem; }
 
 .card {

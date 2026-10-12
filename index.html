@@ -41,6 +41,22 @@
             <button type="button" id="book-apply" class="secondary wide">この商品名を検索欄に入れる</button>
           </div>
         </div>
+        <button type="button" id="open-ocr" class="secondary wide">型番を撮影</button>
+        <p class="hint">英数字の型番を写真から読みます。結果は候補です。検索サイトは自動では開きません。</p>
+        <input id="ocr-file" type="file" accept="image/*" hidden>
+        <div id="ocr-panel" hidden>
+          <p id="ocr-status" role="status"></p>
+          <button type="button" id="ocr-cancel" class="secondary wide" hidden>読み取りを中止</button>
+          <button type="button" id="ocr-retake" class="secondary wide" hidden>写真を撮り直す／別の写真を選ぶ</button>
+          <div id="ocr-result" hidden>
+            <p class="note">読み取った文字です。正しい型番とは限りません。必要な部分を選択して検索欄に入れられます。</p>
+            <label for="ocr-text">認識した文字</label>
+            <textarea id="ocr-text" readonly></textarea>
+            <button type="button" id="ocr-use-selection" class="secondary wide">選択した文字を検索欄に入れる</button>
+            <button type="button" id="ocr-use-all" class="secondary wide">この文字全体を検索欄に入れる</button>
+            <div id="ocr-candidates"></div>
+          </div>
+        </div>
         <button type="submit" id="open-all" aria-disabled="true">3サイトを開く</button>
         <p class="hint">各サイトは、下のボタンから個別に開けます。</p>
         <p id="status" role="status" aria-live="polite"></p>
@@ -254,6 +270,7 @@
   <script src="js/calc.js"></script>
   <script src="js/model.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/ocr.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

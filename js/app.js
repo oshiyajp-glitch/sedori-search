@@ -2,6 +2,7 @@
   var urls = window.SedoriUrls;
   var codes = window.SedoriCodes;
   var books = window.SedoriBooks;
+  var ocr = window.SedoriOcr;
   var barcode = window.SedoriBarcode;
   var calc = window.SedoriCalc;
   var model = window.SedoriModel;
@@ -34,6 +35,11 @@
   var lookupGate = books.createLookupGate();
   var lookupTimer = 0;
   var manualTimer = 0;
+  var ocrJob = 0;
+  var ocrWorker = null;
+  var ocrRunning = false;
+  var ocrChosen = "";
+  var tesseractPromise = null;
   var BARCODE_MESSAGES = {
     insecure: "この接続ではカメラを使えません。iPhoneではHTTPSのページで開いてください。型番は手入力できます。",
     unsupported: "このブラウザではカメラを使えません。型番は手入力できます。",
@@ -239,8 +245,251 @@
     if (panel) panel.hidden = true;
   }
 
+  function searchRecordMethod(query) {
+    var method = barcode.searchMethod(query, scannedQuery);
+    if (method === "barcode") return method;
+    return ocr.searchMethod(query, ocrChosen);
+  }
+
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () {
+        var error = new Error("timeout");
+        error.name = "TimeoutError";
+        reject(error);
+      }, ms);
+      Promise.resolve(promise).then(function (value) {
+        clearTimeout(timer);
+        resolve(value);
+      }, function (error) {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+  }
+
+  function tesseractBase() {
+    return new URL("vendor/tesseract/", document.baseURI).href.replace(/\/$/, "");
+  }
+
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (tesseractPromise) return tesseractPromise;
+    tesseractPromise = new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.src = new URL("vendor/tesseract/tesseract.min.js", document.baseURI).href;
+      script.onload = function () {
+        if (window.Tesseract) resolve(window.Tesseract);
+        else reject(new Error("library"));
+      };
+      script.onerror = function () { reject(new Error("library")); };
+      document.head.appendChild(script);
+    });
+    return tesseractPromise;
+  }
+
+  function stopOcrWorker() {
+    ocrJob += 1;
+    var worker = ocrWorker;
+    ocrWorker = null;
+    ocrRunning = false;
+    if (worker && worker.terminate) worker.terminate();
+    return worker;
+  }
+
+  function renderOcr(state, detail) {
+    var panel = document.getElementById("ocr-panel");
+    var status = document.getElementById("ocr-status");
+    var result = document.getElementById("ocr-result");
+    var messages = {
+      loading: "文字を読み取っています。初回は準備に少し時間がかかります。検索は手入力のまま使えます。",
+      cancelled: "読み取りを中止しました。型番は手入力できます。",
+      timeout: "時間内に読み取れませんでした。型番は手入力できます。",
+      failed: "文字を読み取れませんでした。型番は手入力できます。",
+      library: "文字認識を読み込めませんでした。型番は手入力できます。",
+      unsupported: "この端末では文字認識を使えません。型番は手入力できます。",
+      empty: "型番らしい文字は見つかりませんでした。文字を選ぶか、写真を選び直してください。",
+      found: "候補です。正しい型番を選んでください。検索はまだ開いていません。"
+    };
+    panel.hidden = false;
+    status.textContent = messages[state] || "";
+    document.getElementById("ocr-cancel").hidden = state !== "loading";
+    document.getElementById("ocr-retake").hidden = state === "loading";
+    var showText = state === "found" || state === "empty";
+    result.hidden = !showText;
+    var box = document.getElementById("ocr-candidates");
+    box.textContent = "";
+    if (!showText) {
+      document.getElementById("ocr-text").value = "";
+      return;
+    }
+    document.getElementById("ocr-text").value = detail && detail.text ? detail.text : "";
+    addOcrChoices(box, detail && detail.candidates, "候補");
+    if (detail && detail.variants && detail.variants.length) {
+      var note = document.createElement("p");
+      note.className = "note";
+      note.textContent = "読み間違いの候補です。自動では置き換えていません。";
+      box.appendChild(note);
+      addOcrChoices(box, detail.variants, "");
+    }
+  }
+
+  function addOcrChoices(box, labels) {
+    (labels || []).forEach(function (label) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary ocr-choice";
+      button.textContent = label;
+      button.addEventListener("click", function () { applyOcrText(label); });
+      box.appendChild(button);
+    });
+  }
+
+  function applyOcrText(text) {
+    var value = String(text || "").replace(/^\s+|\s+$/g, "");
+    if (!value) {
+      setStatus("入れる文字がありません。検索欄は手入力できます。");
+      return;
+    }
+    ocrChosen = value;
+    input.value = value;
+    sync();
+    var check = codes.validateCode(value);
+    if (!(check.ok && !check.empty)) {
+      heldCode = { code: "", kind: "" };
+      cancelBookLookup();
+      renderBook("idle");
+    }
+    followCode(check, false);
+    setStatus("検索欄に入れました。内容を確認してから検索してください。");
+    input.focus();
+  }
+
+  function scaleOcrImage(file) {
+    return new Promise(function (resolve, reject) {
+      var blobUrl = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(blobUrl);
+        var fitted = ocr.fitLongEdge(img.naturalWidth, img.naturalHeight, ocr.LONG_EDGE);
+        var canvas = document.createElement("canvas");
+        canvas.width = fitted.width;
+        canvas.height = fitted.height;
+        var context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("canvas"));
+          return;
+        }
+        context.drawImage(img, 0, 0, fitted.width, fitted.height);
+        resolve(canvas);
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(blobUrl);
+        reject(new Error("image"));
+      };
+      img.src = blobUrl;
+    });
+  }
+
+  function recognizeCanvas(worker, canvas) {
+    return worker.setParameters({
+      tessedit_char_whitelist: ocr.CHAR_WHITELIST,
+      tessedit_pageseg_mode: ocr.PAGE_MODE
+    }).then(function () {
+      return worker.recognize(canvas);
+    }).then(function (result) {
+      return result && result.data && result.data.text ? result.data.text : "";
+    });
+  }
+
+  function finishOcr(id, text) {
+    if (id !== ocrJob) return;
+    var worker = ocrWorker;
+    ocrWorker = null;
+    ocrRunning = false;
+    if (worker && worker.terminate) worker.terminate();
+    var source = String(text || "");
+    var candidates = ocr.extractModelCandidates(source);
+    var variants = candidates.length ? ocr.confusionVariants(candidates[0]).filter(function (item) {
+      return candidates.indexOf(item) === -1;
+    }) : [];
+    if (!source.replace(/\s+/g, "")) {
+      renderOcr("failed");
+      return;
+    }
+    renderOcr(candidates.length ? "found" : "empty", {
+      text: source,
+      candidates: candidates,
+      variants: variants
+    });
+  }
+
+  function cancelOcr() {
+    if (!ocrRunning) return;
+    stopOcrWorker();
+    renderOcr("cancelled");
+  }
+
+  function startOcr(file) {
+    if (typeof Worker !== "function" || typeof WebAssembly !== "object") {
+      renderOcr("unsupported");
+      return;
+    }
+    stopBarcodeCamera();
+    var id = ++ocrJob;
+    if (ocrWorker && ocrWorker.terminate) ocrWorker.terminate();
+    ocrWorker = null;
+    ocrRunning = true;
+    renderOcr("loading");
+    var base = tesseractBase();
+    loadTesseract().then(function (Tesseract) {
+      if (id !== ocrJob) return null;
+      var creating = Tesseract.createWorker("eng", 1, {
+        workerPath: base + "/worker.min.js",
+        corePath: base,
+        langPath: base,
+        workerBlobURL: true,
+        gzip: true
+      });
+      var timed = withTimeout(creating, ocr.INIT_TIMEOUT_MS);
+      timed.catch(function () {
+        creating.then(function (worker) {
+          if (worker && worker.terminate) worker.terminate();
+        }).catch(function () {});
+      });
+      return timed;
+    }).then(function (worker) {
+      if (!worker || id !== ocrJob) {
+        if (worker && worker.terminate) worker.terminate();
+        return null;
+      }
+      ocrWorker = worker;
+      return scaleOcrImage(file).then(function (canvas) {
+        if (id !== ocrJob) return null;
+        return withTimeout(recognizeCanvas(worker, canvas), ocr.RECOGNIZE_TIMEOUT_MS);
+      });
+    }).then(function (text) {
+      if (text == null || id !== ocrJob) return;
+      finishOcr(id, text);
+    }).catch(function (error) {
+      if (id !== ocrJob) return;
+      var worker = ocrWorker;
+      ocrWorker = null;
+      ocrRunning = false;
+      if (worker && worker.terminate) worker.terminate();
+      if (error && error.name === "TimeoutError") renderOcr("timeout");
+      else if (error && error.message === "library") renderOcr("library");
+      else renderOcr("failed");
+    });
+  }
+
+  function openOcrPicker() {
+    document.getElementById("ocr-file").click();
+  }
+
   function startBarcode() {
     stopBarcodeCamera();
+    if (ocrRunning) cancelOcr();
     var availability = barcode.cameraAvailability();
     if (!availability.ok) {
       setStatus(BARCODE_MESSAGES[availability.reason] || BARCODE_MESSAGES.failed);
@@ -282,7 +531,7 @@
     return commit(model.recordSearch(state, {
       keyword: query,
       sites: siteIds,
-      method: barcode.searchMethod(query, scannedQuery)
+      method: searchRecordMethod(query)
     }));
   }
 
@@ -302,7 +551,10 @@
       document.getElementById("settings-status").textContent = "";
     }
     if (name === "profit") renderProfit();
-    if (name !== "search") stopBarcodeCamera();
+    if (name !== "search") {
+      stopBarcodeCamera();
+      if (ocrRunning) cancelOcr();
+    }
   }
 
   function formatWhen(iso) {
@@ -1201,6 +1453,8 @@
     scannedQuery = "";
     input.value = "";
     heldCode = { code: "", kind: "" };
+    ocrChosen = "";
+    if (ocrRunning) cancelOcr();
     stopBarcodeCamera();
     cancelBookLookup();
     renderBook("idle");
@@ -1222,12 +1476,36 @@
   });
 
   document.getElementById("open-barcode").addEventListener("click", startBarcode);
+  document.getElementById("open-ocr").addEventListener("click", openOcrPicker);
+  document.getElementById("ocr-retake").addEventListener("click", openOcrPicker);
+  document.getElementById("ocr-cancel").addEventListener("click", cancelOcr);
+  document.getElementById("ocr-file").addEventListener("change", function () {
+    var file = this.files && this.files[0];
+    this.value = "";
+    if (file) startOcr(file);
+  });
+  document.getElementById("ocr-use-selection").addEventListener("click", function () {
+    var area = document.getElementById("ocr-text");
+    var selected = area.value.slice(area.selectionStart, area.selectionEnd);
+    if (!selected.replace(/\s+/g, "")) {
+      setStatus("認識した文字の一部を選択してください。");
+      area.focus();
+      return;
+    }
+    applyOcrText(selected);
+  });
+  document.getElementById("ocr-use-all").addEventListener("click", function () {
+    applyOcrText(document.getElementById("ocr-text").value);
+  });
   document.getElementById("barcode-close").addEventListener("click", function () {
     stopBarcodeCamera();
     setStatus("カメラを閉じました。型番は手入力できます。");
     input.focus();
   });
-  window.addEventListener("pagehide", stopBarcodeCamera);
+  window.addEventListener("pagehide", function () {
+    stopBarcodeCamera();
+    if (ocrRunning) cancelOcr();
+  });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") stopBarcodeCamera();
   });
