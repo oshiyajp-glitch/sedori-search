@@ -25,11 +25,21 @@
           <button type="button" id="clear" hidden>クリア</button>
         </div>
         <button type="button" id="open-barcode" class="secondary wide">バーコードを読む</button>
-        <p class="hint">JAN・EAN-13、EAN-8、UPC-Aを読めます。ISBN-10は手入力してください。読み取ったあとは、確認してから検索します。</p>
+        <p class="hint">JAN・EAN-13、EAN-8、UPC-Aを読めます。ISBN-10は手入力してください。ISBNのときだけ書名を確認できます。読み取ったあとは、確認してから検索します。</p>
         <div id="barcode-panel" hidden>
           <p id="barcode-status" role="status"></p>
           <video id="barcode-video" playsinline webkit-playsinline muted autoplay disablepictureinpicture></video>
           <button type="button" id="barcode-close" class="secondary wide">カメラを閉じる</button>
+        </div>
+        <div id="book-panel" hidden>
+          <p id="book-status" role="status"></p>
+          <div id="book-found" hidden>
+            <p class="note">openBDから取得した書誌です。内容を確認してください。書名・著者・出版社の表示は変更できません。書影や内容紹介は保存しません。</p>
+            <p id="book-source"></p>
+            <label for="book-title">検索・仕入れ候補に使う商品名</label>
+            <input id="book-title" type="text" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button type="button" id="book-apply" class="secondary wide">この商品名を検索欄に入れる</button>
+          </div>
         </div>
         <button type="submit" id="open-all" aria-disabled="true">3サイトを開く</button>
         <p class="hint">各サイトは、下のボタンから個別に開けます。</p>
@@ -239,6 +249,7 @@
   <script src="vendor/zxing/zxing.min.js"></script>
   <script src="js/urls.js"></script>
   <script src="js/codes.js"></script>
+  <script src="js/books.js"></script>
   <script src="js/barcode.js"></script>
   <script src="js/calc.js"></script>
   <script src="js/model.js"></script>

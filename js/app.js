@@ -1,6 +1,7 @@
 (function () {
   var urls = window.SedoriUrls;
   var codes = window.SedoriCodes;
+  var books = window.SedoriBooks;
   var barcode = window.SedoriBarcode;
   var calc = window.SedoriCalc;
   var model = window.SedoriModel;
@@ -26,6 +27,13 @@
   var COMPARE_NOTE = "販売速度や需要は見ていません。利益額だけの比較です。";
   var scannedQuery = "";
   var barcodeSession = null;
+  var heldCode = { code: "", kind: "" };
+  var bookState = "idle";
+  var bookAuthor = "";
+  var bookPublisher = "";
+  var lookupGate = books.createLookupGate();
+  var lookupTimer = 0;
+  var manualTimer = 0;
   var BARCODE_MESSAGES = {
     insecure: "この接続ではカメラを使えません。iPhoneではHTTPSのページで開いてください。型番は手入力できます。",
     unsupported: "このブラウザではカメラを使えません。型番は手入力できます。",
@@ -120,6 +128,101 @@
     });
   }
 
+  function renderBook(state, book) {
+    bookState = state;
+    bookAuthor = state === "found" && book ? book.author : "";
+    bookPublisher = state === "found" && book ? book.publisher : "";
+    var panel = document.getElementById("book-panel");
+    var found = document.getElementById("book-found");
+    var status = document.getElementById("book-status");
+    var messages = {
+      loading: "書誌を確認しています。検索はISBNのまま続行できます。",
+      missing: "openBDに該当する書籍がありません。ISBNのまま検索できます。",
+      timeout: "書誌の応答がありませんでした。ISBNのまま検索できます。",
+      failed: "書誌を取得できませんでした。ISBNのまま検索できます。",
+      skipped: "この番号はISBNではないため、書誌は取得しません。番号のまま検索できます。"
+    };
+    panel.hidden = state === "idle";
+    found.hidden = state !== "found";
+    status.textContent = messages[state] || "";
+    if (state !== "found") {
+      document.getElementById("book-title").value = "";
+      document.getElementById("book-source").textContent = "";
+      return;
+    }
+    var lines = [];
+    if (book.title) lines.push("書名: " + book.title);
+    if (book.author) lines.push("著者: " + book.author);
+    if (book.publisher) lines.push("出版社: " + book.publisher);
+    lines.push("ISBN: " + heldCode.code);
+    document.getElementById("book-source").textContent = lines.join("\n");
+    status.textContent = "書誌を取得しました。内容を確認してください。";
+    document.getElementById("book-title").value = book.title;
+  }
+
+  function cancelBookLookup() {
+    if (manualTimer) clearTimeout(manualTimer);
+    manualTimer = 0;
+    if (lookupTimer) clearTimeout(lookupTimer);
+    lookupTimer = 0;
+    lookupGate.cancel();
+  }
+
+  function followCode(check, immediate) {
+    if (check && check.empty) {
+      heldCode = { code: "", kind: "" };
+      cancelBookLookup();
+      renderBook("idle");
+      return;
+    }
+    if (!check || !check.ok) return;
+    if (books.shouldLookup(check)) {
+      if (!immediate && heldCode.code === check.isbn13 && (bookState === "loading" || bookState === "found" || bookState === "missing")) return;
+      heldCode = { code: check.isbn13, kind: check.kind };
+      startBookLookup(check.isbn13);
+      return;
+    }
+    if (check.kind === "jan" || check.kind === "ean8" || check.kind === "upca") {
+      heldCode = { code: check.normalized, kind: check.kind };
+      cancelBookLookup();
+      renderBook("skipped");
+    }
+  }
+
+  function startBookLookup(isbn) {
+    if (lookupTimer) clearTimeout(lookupTimer);
+    var request = lookupGate.begin();
+    renderBook("loading");
+    var timedOut = false;
+    var timer = setTimeout(function () {
+      timedOut = true;
+      request.abort();
+    }, books.TIMEOUT_MS);
+    lookupTimer = timer;
+    var pending;
+    try {
+      pending = books.lookupIsbn(isbn, request.signal);
+    } catch (error) {
+      settleBookLookup(isbn, request, timer, { error: error, timedOut: false });
+      return;
+    }
+    pending.then(function (body) {
+      settleBookLookup(isbn, request, timer, { body: body });
+    }, function (error) {
+      settleBookLookup(isbn, request, timer, { error: error, timedOut: timedOut });
+    });
+  }
+
+  function settleBookLookup(isbn, request, timer, outcome) {
+    if (lookupTimer === timer) {
+      clearTimeout(timer);
+      lookupTimer = 0;
+    }
+    var result = request.finish(outcome);
+    if (!result || heldCode.code !== isbn) return;
+    renderBook(result.status, result);
+  }
+
   function stopBarcodeCamera() {
     var video = document.getElementById("barcode-video");
     var stream = video && video.srcObject;
@@ -155,6 +258,10 @@
         scannedQuery = scan.code;
         input.value = scan.code;
         sync();
+        if (manualTimer) clearTimeout(manualTimer);
+        manualTimer = 0;
+        var check = codes.validateCode(scan.code);
+        if (check.ok) followCode(check, true);
         setStatus(scan.message + "検索はまだ開いていません。内容を確認してから検索してください。");
         input.focus();
       },
@@ -368,7 +475,15 @@
   }
 
   function openCandidateEditor(candidate) {
-    var draft = candidate || model.blankCandidate({ modelNumber: currentQuery() });
+    var seed = books.candidateSeed(
+      currentQuery(),
+      heldCode,
+      bookState,
+      document.getElementById("book-title").value,
+      bookAuthor,
+      bookPublisher
+    );
+    var draft = candidate || model.blankCandidate(seed);
     editingId = draft.id;
     document.getElementById("candidate-form-title").textContent = candidate ? "仕入れ候補を編集" : "仕入れ候補を追加";
     document.getElementById("candidate-delete").hidden = !candidate;
@@ -1075,14 +1190,34 @@
     stopBarcodeCamera();
     setStatus("");
     sync();
+    if (manualTimer) clearTimeout(manualTimer);
+    manualTimer = setTimeout(function () {
+      manualTimer = 0;
+      followCode(codes.validateCode(input.value), false);
+    }, 400);
   });
 
   clearButton.addEventListener("click", function () {
     scannedQuery = "";
     input.value = "";
+    heldCode = { code: "", kind: "" };
     stopBarcodeCamera();
+    cancelBookLookup();
+    renderBook("idle");
     setStatus("");
     sync();
+    input.focus();
+  });
+
+  document.getElementById("book-apply").addEventListener("click", function () {
+    var title = document.getElementById("book-title").value.replace(/^\s+|\s+$/g, "");
+    if (!title) {
+      setStatus("商品名を入力してください。ISBNのまま検索することもできます。");
+      return;
+    }
+    input.value = title;
+    sync();
+    setStatus("商品名を検索欄に入れました。ISBNは保持しています。内容を確認してから検索してください。");
     input.focus();
   });
 
